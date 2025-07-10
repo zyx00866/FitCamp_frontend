@@ -1,25 +1,26 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function ActivityCard({ 
-    activityName,
-    location,
-    time,
-    enrolledCount,
-    totalCount,
-    fee
+    activityName = "晨间瑜伽课程",
+    location = "健身房A区",
+    time = "2024-07-10 08:00",
+    enrolledCount = 15,
+    totalCount = 20,
+    fee = 50
 }) {
     const [isFavorited, setIsFavorited] = useState(false);
     const [isEnrolled, setIsEnrolled] = useState(false);
+    const navigate = useNavigate();
 
     const handleFavorite = () => {
         setIsFavorited(!isFavorited);
-        // 添加收藏逻辑
+        console.log(isFavorited ? '取消收藏' : '收藏成功');
     };
 
     const handleEnroll = () => {
         if (!isEnrolled && enrolledCount < totalCount) {
             setIsEnrolled(true);
-            //添加报名逻辑
             console.log('报名成功:', activityName);
         }
     };
@@ -27,15 +28,20 @@ function ActivityCard({
     const handleCancelEnroll = () => {
         if (isEnrolled) {
             setIsEnrolled(false);
-            //添加取消报名逻辑
             console.log('取消报名:', activityName);
         }
+    };
+
+    const handleViewDetails = () => {
+        // 跳转到活动详情页面
+        navigate('/activitydetail');
+        console.log('查看详情:', activityName);
     };
 
     const isFull = enrolledCount >= totalCount;
 
     return (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 m-4 max-w-sm">
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 m-4 max-w-sm" >
             {/* 活动名称 */}
             <h3 className="text-xl font-bold text-gray-800 mb-3">{activityName}</h3>
             
@@ -97,6 +103,15 @@ function ActivityCard({
                 
                 {/* 报名/取消报名按钮区域 */}
                 <div className="flex space-x-2">
+                    {/* 详情按钮 */}
+                    <button
+                        onClick={handleViewDetails}
+                        className="px-4 py-2 rounded-full font-medium transition duration-200 bg-purple-500 text-white hover:bg-purple-600"
+                        title="查看详情"
+                    >
+                        详情
+                    </button>
+                    
                     {/* 报名按钮 */}
                     <button
                         onClick={handleEnroll}

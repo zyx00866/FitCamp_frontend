@@ -8,7 +8,6 @@ import { useNavigate, Routes, Route } from 'react-router-dom'
 import LoginPage from './LoginPage.jsx' 
 import RegisterPage from './RegisterPage.jsx'
 import UserPage from './UserPage.jsx'
-import SearchPage from './SearchPage.jsx'
 import ActivityDetail from './ActivityDetail.jsx'
 
 function App() {
@@ -80,7 +79,6 @@ function App() {
       <Route path="/loginpage" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/userpage" element={<UserPage />} />
-      <Route path="/searchpage" element={<SearchPage />} />
       <Route path="/activitydetail" element={<ActivityDetail />} />
 
     </Routes>
