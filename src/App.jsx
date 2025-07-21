@@ -14,7 +14,7 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState('全部');
   const [currentPage, setCurrentPage] = useState(1);
   
-  const categories = ['全部', '健身', '游泳', '跑步', '舞蹈', '拳击', '篮球', '其它'];
+  const categories = ['全部', '健身', '游泳', '跑步', '舞蹈', '足球', '羽毛球', '篮球', '其它'];
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
