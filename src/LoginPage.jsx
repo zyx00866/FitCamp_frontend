@@ -82,7 +82,7 @@ function LoginPage() {
     const checkAuthStatus = () => {
         const token = localStorage.getItem('token');
         if (token) {
-            navigate('/user');
+            navigate('/usepage');
         }
     };
 
