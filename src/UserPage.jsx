@@ -156,11 +156,28 @@ function UserPage() {
         if (!file) return;
 
         const token = localStorage.getItem('token');
-        const formData = new FormData();
-        formData.append('avatar', file);
+        
+        // 验证文件类型
+        if (!file.type.startsWith('image/')) {
+            alert('请选择图片文件');
+            return;
+        }
+
+        // 验证文件大小（限制为10MB）
+        if (file.size > 10 * 1024 * 1024) {
+            alert('图片大小不能超过10MB');
+            return;
+        }
 
         try {
-            const response = await fetch('http://localhost:7001/user/uploadAvatar', {
+            //上传图片
+            console.log('开始上传图片...');
+            
+            const formData = new FormData();
+            formData.append('files', file);
+            formData.append('category', 'avatar'); // 指定图片种类为avatar
+            
+            const uploadResponse = await fetch('http://localhost:7001/upload/image', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -168,24 +185,73 @@ function UserPage() {
                 body: formData
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    // 更新本地用户数据
-                    setUserData({
-                        ...userData,
-                        avatar: data.data.avatar
-                    });
-                    alert('头像更新成功');
-                } else {
-                    alert(data.message || '头像上传失败');
-                }
-            } else {
-                alert('头像上传失败，请稍后重试');
+            if (!uploadResponse.ok) {
+                throw new Error(`图片上传失败: ${uploadResponse.status}`);
             }
+
+            const uploadData = await uploadResponse.json();
+            console.log('图片上传响应:', uploadData);
+
+            if (!uploadData.success || !uploadData.data?.url) {
+                throw new Error(uploadData.message || '图片上传失败，未返回URL');
+            }
+
+            const imageUrl = uploadData.data.url;
+            console.log('获取到图片URL:', imageUrl);
+
+            // 解析token获取用户ID
+            let userId;
+            try {
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+                    userId = payload.id || payload.userId || payload.user_id || payload.sub;
+                    console.log('从token中提取的用户ID:', userId);
+                }
+            } catch (e) {
+                console.error('Token解析失败:', e);
+            }
+
+            if (!userId) {
+                throw new Error('无法从token中获取用户ID');
+            }
+
+            // 更新用户头像
+            console.log('开始更新用户头像...');
+            
+            const updateResponse = await fetch('http://localhost:7001/user/updateAvatar', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: userId,
+                    avatar: imageUrl
+                })
+            });
+
+            if (!updateResponse.ok) {
+                throw new Error(`头像更新失败: ${updateResponse.status}`);
+            }
+
+            const updateData = await updateResponse.json();
+            console.log('头像更新响应:', updateData);
+
+            if (updateData.success) {
+                // 更新本地用户数据
+                setUserData({
+                    ...userData,
+                    avatar: imageUrl // 使用返回的图片URL
+                });
+                alert('头像更新成功');
+            } else {
+                throw new Error(updateData.message || '头像更新失败');
+            }
+
         } catch (error) {
             console.error('头像上传错误:', error);
-            alert('网络连接失败，请稍后重试');
+            alert(error.message || '头像上传失败，请稍后重试');
         }
     };
 

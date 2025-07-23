@@ -72,7 +72,7 @@ function LoginPage() {
             }
         } catch (error) {
             console.error('登录请求失败:', error);
-            setError('网络连接失败，请稍后重试');
+            setError('登录失败，请检查用户名和密码');
         } finally {
             setIsLoading(false);
         }
