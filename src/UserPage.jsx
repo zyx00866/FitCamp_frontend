@@ -21,7 +21,7 @@ function UserPage() {
             
             if (!token) {
                 setError('未登录，请先登录');
-                navigate('/login');
+                navigate('/loginpage');
                 return;
             }
 
@@ -50,7 +50,7 @@ function UserPage() {
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     setError('登录已过期，请重新登录');
-                    navigate('/login');
+                    navigate('/loginpage');
                 }
             } catch (error) {
                 console.error('获取用户信息错误:', error);
@@ -297,7 +297,7 @@ function UserPage() {
                 <div className="text-center">
                     <div className="text-red-500 text-xl mb-4">{error}</div>
                     <button
-                        onClick={() => navigate('/login')}
+                        onClick={() => navigate('/loginpage')}
                         className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200"
                     >
                         去登录
