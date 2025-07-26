@@ -1,89 +1,299 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 function ActivityDetail() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const activityId = searchParams.get('id');
+    
+    // 状态管理
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [activityData, setActivityData] = useState(null);
     const [isEnrolled, setIsEnrolled] = useState(false);
     const [isFavorited, setIsFavorited] = useState(false);
+    const [isOperating, setIsOperating] = useState(false); // 添加操作状态
     
     // 评论相关状态
-    const [comments, setComments] = useState([
-        {
-            id: 1,
-            user: "李小明",
-            avatar: "https://via.placeholder.com/40x40/3B82F6/FFFFFF?text=李",
-            content: "这个瑜伽课程真的很不错，老师很专业，动作指导很详细。对于初学者来说非常友好！",
-            time: "2024-07-09 15:30",
-            rating: 5,
-            images: ["https://via.placeholder.com/300x200/4F46E5/FFFFFF?text=瑜伽练习"]
-        },
-        {
-            id: 2,
-            user: "王美丽",
-            avatar: "https://via.placeholder.com/40x40/EF4444/FFFFFF?text=王",
-            content: "环境很好，时间安排也合理。上完课感觉整个人都放松了很多。",
-            time: "2024-07-08 20:15",
-            rating: 4,
-            images: []
-        },
-        {
-            id: 3,
-            user: "张健身",
-            avatar: "https://via.placeholder.com/40x40/10B981/FFFFFF?text=张",
-            content: "作为一个瑜伽小白，这个课程让我找到了运动的乐趣。推荐给大家！",
-            time: "2024-07-07 09:45",
-            rating: 5,
-            images: [
-                "https://via.placeholder.com/300x200/10B981/FFFFFF?text=课程环境",
-                "https://via.placeholder.com/300x200/8B5CF6/FFFFFF?text=练习效果"
-            ]
-        }
-    ]);
-    
+    const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [userRating, setUserRating] = useState(5);
     const [selectedImages, setSelectedImages] = useState([]);
     const [previewImages, setPreviewImages] = useState([]);
-    
-    // 模拟活动数据
-    const activityData = {
-        id: 1,
-        name: "晨间瑜伽课程",
-        image: "/api/placeholder/600/400",
-        fee: 50,
-        enrolledCount: 15,
-        totalCount: 20,
-        location: "健身房A区",
-        time: "2024-07-10 08:00-09:00",
-        organizer: "张瑜伽老师",
-        introduction: `
-            【课程简介】
-            这是一个专为初学者设计的瑜伽课程，旨在帮助您在繁忙的工作日开始前放松身心，提高柔韧性和专注力。课程内容包括基础瑜伽姿势、呼吸练习和冥想。
 
-            【活动收益】
-            • 提高身体柔韧性和平衡能力
-            • 增强核心力量和肌肉耐力
-            • 减轻工作压力和焦虑情绪
-            • 改善睡眠质量和精神状态
-            • 提升专注力和内心平静
-
-            【注意事项】
-            • 请穿着舒适的运动服装，避免过紧或过松
-            • 建议自带瑜伽垫，现场也有提供
-            • 课前2小时内请勿大量进食
-            • 如有身体不适或特殊疾病请提前告知教练
-            • 课程适合所有健身水平的参与者
-        `
+    // 获取当前用户信息
+    const getCurrentUser = () => {
+        try {
+            const userStr = localStorage.getItem('user');
+            return userStr ? JSON.parse(userStr) : null;
+        } catch (error) {
+            console.error('解析用户信息失败:', error);
+            return null;
+        }
     };
 
-    const handleEnroll = () => {
-        setIsEnrolled(!isEnrolled);
-        console.log(isEnrolled ? '取消报名' : '报名成功');
+    // 检查用户登录状态
+    const checkAuth = () => {
+        const token = localStorage.getItem('token');
+        const user = getCurrentUser();
+        
+        if (!token || !user) {
+            alert('请先登录');
+            navigate('/loginpage');
+            return false;
+        }
+        return true;
     };
 
-    const handleFavorite = () => {
-        setIsFavorited(!isFavorited);
-        console.log(isFavorited ? '取消收藏' : '收藏成功');
+    // 获取活动详情
+    useEffect(() => {
+        const fetchActivityDetail = async () => {
+            if (!activityId) {
+                setError('活动ID无效');
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                setIsLoading(true);
+                setError('');
+
+                console.log('正在获取活动详情，ID:', activityId);
+
+                const response = await fetch(`http://localhost:7001/activity/detail?id=${activityId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                console.log('活动详情响应状态:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`获取活动详情失败: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('活动详情响应数据:', data);
+
+                if (data.success) {
+                    setActivityData(data.data);
+                    console.log('获取到的活动数据:', data.data);
+                    
+                    // 如果有评论数据，也设置评论
+                    if (data.data.comments) {
+                        setComments(data.data.comments);
+                    }
+                } else {
+                    throw new Error(data.message || '获取活动详情失败');
+                }
+            } catch (error) {
+                console.error('获取活动详情错误:', error);
+                setError(error.message || '网络连接失败，请稍后重试');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchActivityDetail();
+    }, [activityId]);
+
+    // 检查用户的收藏和报名状态
+    useEffect(() => {
+        const checkUserStatus = async () => {
+            const user = getCurrentUser();
+            const token = localStorage.getItem('token');
+            
+            if (!user || !token || !activityId) return;
+
+            try {
+                // 获取用户信息，包括关联的活动和收藏
+                const response = await fetch('http://localhost:7001/user/userInfo', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        const userData = data.data;
+                        
+                        // 检查是否已报名此活动
+                        if (userData.activities && Array.isArray(userData.activities)) {
+                            const isEnrolledInActivity = userData.activities.some(
+                                activity => String(activity.id) === String(activityId)
+                            );
+                            setIsEnrolled(isEnrolledInActivity);
+                            console.log('报名状态检查:', { activityId, isEnrolled: isEnrolledInActivity });
+                        }
+                        
+                        // 检查是否已收藏此活动
+                        if (userData.favoriteActivities && Array.isArray(userData.favoriteActivities)) {
+                            const isFavoritedActivity = userData.favoriteActivities.some(
+                                activity => String(activity.id) === String(activityId)
+                            );
+                            setIsFavorited(isFavoritedActivity);
+                            console.log('收藏状态检查:', { activityId, isFavorited: isFavoritedActivity });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('获取用户状态失败:', error);
+            }
+        };
+
+        checkUserStatus();
+    }, [activityId]);
+
+    // 报名功能
+    const handleEnroll = async () => {
+        if (!checkAuth()) return;
+        if (isOperating) return;
+
+        // 检查活动是否已满
+        const currentParticipants = activityData.participants ? activityData.participants.length : 0;
+        if (!isEnrolled && currentParticipants >= activityData.participantsLimit) {
+            alert('活动名额已满');
+            return;
+        }
+
+        const user = getCurrentUser();
+        const token = localStorage.getItem('token');
+
+        try {
+            setIsOperating(true);
+            
+            // 根据当前状态选择API端点
+            const endpoint = isEnrolled ? 'leave' : 'signup';
+            const action = isEnrolled ? '取消报名' : '报名';
+            
+            console.log(`正在${action}:`, { userId: user.id, activityId: String(activityId) });
+
+            const response = await fetch(`http://localhost:7001/activity/${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    userId: user.id,
+                    activityId: String(activityId)
+                })
+            });
+
+            console.log(`${action}响应状态:`, response.status);
+
+            if (!response.ok) {
+                throw new Error(`${action}失败: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log(`${action}响应数据:`, data);
+
+            if (data.success) {
+                setIsEnrolled(!isEnrolled);
+                console.log(`${action}成功`);
+                
+                // 直接刷新页面，不显示成功提示
+                window.location.reload();
+            } else {
+                throw new Error(data.message || `${action}失败`);
+            }
+
+        } catch (error) {
+            console.error('报名操作失败:', error);
+            alert(error.message || '操作失败，请稍后重试');
+            setIsOperating(false);
+        }
+    };
+
+    // 收藏功能
+    const handleFavorite = async () => {
+        if (!checkAuth()) return;
+        if (isOperating) return;
+
+        const user = getCurrentUser();
+        const token = localStorage.getItem('token');
+
+        try {
+            setIsOperating(true);
+            
+            // 根据当前收藏状态选择API端点
+            const endpoint = isFavorited ? 'unfavourite' : 'favourite';
+            const action = isFavorited ? '取消收藏' : '收藏';
+            
+            console.log(`正在${action}:`, { userId: user.id, activityId: String(activityId) });
+
+            const response = await fetch(`http://localhost:7001/activity/${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    userId: user.id,
+                    activityId: String(activityId)
+                })
+            });
+
+            console.log(`${action}响应状态:`, response.status);
+
+            if (!response.ok) {
+                throw new Error(`${action}失败: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log(`${action}响应数据:`, data);
+
+            if (data.success) {
+                setIsFavorited(!isFavorited);
+                console.log(`${action}成功`);
+                
+                // 直接刷新页面，不显示成功提示
+                window.location.reload();
+            } else {
+                throw new Error(data.message || `${action}失败`);
+            }
+
+        } catch (error) {
+            console.error('收藏操作失败:', error);
+            alert(error.message || '操作失败，请稍后重试');
+            setIsOperating(false);
+        }
+    };
+
+    // 格式化日期时间显示
+    const formatDateTime = (dateString) => {
+        if (!dateString) return "时间待定";
+        
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return error.message || "时间格式错误";
+        }
+    };
+
+    // 获取图片URL数组
+    const getImageUrls = (pictureString) => {
+        if (!pictureString) return [];
+        
+        const urls = pictureString.split(',').filter(url => url.trim());
+        return urls.map(url => {
+            if (url.startsWith('/')) {
+                return `http://localhost:7001${url}`;
+            }
+            return url;
+        });
     };
 
     const handleBack = () => {
@@ -93,14 +303,13 @@ function ActivityDetail() {
     // 处理图片上传
     const handleImageUpload = (event) => {
         const files = Array.from(event.target.files);
-        const maxFiles = 4; // 最多4张图片
+        const maxFiles = 4;
         
         if (selectedImages.length + files.length > maxFiles) {
             alert(`最多只能上传${maxFiles}张图片`);
             return;
         }
 
-        // 创建预览URL
         const newPreviews = files.map(file => ({
             file,
             url: URL.createObjectURL(file)
@@ -112,27 +321,40 @@ function ActivityDetail() {
 
     // 删除图片
     const removeImage = (index) => {
-        // 清理预览URL
         URL.revokeObjectURL(previewImages[index].url);
-        
         setSelectedImages(prev => prev.filter((_, i) => i !== index));
         setPreviewImages(prev => prev.filter((_, i) => i !== index));
     };
 
     // 提交评论
-    const handleSubmitComment = () => {
-        if (newComment.trim()) {
-            // 模拟上传图片到服务器，这里使用预览URL
-            const imageUrls = previewImages.map(img => img.url);
-            
+    const handleSubmitComment = async () => {
+        if (!newComment.trim()) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('请先登录');
+                navigate('/loginpage');
+                return;
+            }
+
+            // TODO: 上传图片和提交评论到后端
+            console.log('提交评论:', {
+                activityId,
+                content: newComment,
+                rating: userRating,
+                images: selectedImages
+            });
+
+            // 临时添加到本地状态（应该从后端获取最新数据）
             const comment = {
-                id: comments.length + 1,
+                id: Date.now(),
                 user: "当前用户",
                 avatar: "https://via.placeholder.com/40x40/8B5CF6/FFFFFF?text=我",
                 content: newComment,
                 time: new Date().toLocaleString('zh-CN'),
                 rating: userRating,
-                images: imageUrls
+                images: previewImages.map(img => img.url)
             };
             
             setComments([comment, ...comments]);
@@ -140,6 +362,10 @@ function ActivityDetail() {
             setUserRating(5);
             setSelectedImages([]);
             setPreviewImages([]);
+            
+        } catch (error) {
+            console.error('提交评论失败:', error);
+            alert('提交评论失败，请重试');
         }
     };
 
@@ -176,8 +402,42 @@ function ActivityDetail() {
         ));
     };
 
-    const isFull = activityData.enrolledCount >= activityData.totalCount;
-    const averageRating = comments.reduce((sum, comment) => sum + comment.rating, 0) / comments.length;
+    // 加载状态
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">正在加载活动详情...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // 错误状态
+    if (error || !activityData) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-red-500 text-lg mb-4">{error || '活动不存在'}</div>
+                    <button
+                        onClick={handleBack}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200"
+                    >
+                        返回首页
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const imageUrls = getImageUrls(activityData.picture);
+    // 计算当前参与人数 - 从participants数组的长度获取
+    const currentParticipants = activityData.participants ? activityData.participants.length : 0;
+    const isFull = currentParticipants >= activityData.participantsLimit;
+    const averageRating = comments.length > 0 
+        ? comments.reduce((sum, comment) => sum + comment.rating, 0) / comments.length 
+        : 0;
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -207,16 +467,29 @@ function ActivityDetail() {
                     <div className="lg:col-span-2">
                         {/* 活动图片 */}
                         <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
-                            <img 
-                                src={activityData.image} 
-                                alt={activityData.name}
-                                className="w-full h-64 object-cover"
-                                onError={(e) => {
-                                    e.target.src = 'https://via.placeholder.com/600x400/4F46E5/FFFFFF?text=活动图片';
-                                }}
-                            />
+                            {/* 图片轮播 */}
+                            {imageUrls.length > 0 ? (
+                                <div className="h-64 bg-gray-200 overflow-hidden">
+                                    {/* 如果有多张图片，可以做成轮播，这里先显示第一张 */}
+                                    <img 
+                                        src={imageUrls[0]} 
+                                        alt={activityData.title}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            e.target.src = 'https://via.placeholder.com/600x400/4F46E5/FFFFFF?text=活动图片';
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="h-64 bg-gray-200 flex items-center justify-center">
+                                    <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                            )}
+
                             <div className="p-6">
-                                <h2 className="text-3xl font-bold text-gray-800 mb-4">{activityData.name}</h2>
+                                <h2 className="text-3xl font-bold text-gray-800 mb-4">{activityData.title}</h2>
                                 
                                 {/* 活动基本信息 */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -231,14 +504,14 @@ function ActivityDetail() {
                                         <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                                         </svg>
-                                        <span>{activityData.time}</span>
+                                        <span>{formatDateTime(activityData.date)}</span>
                                     </div>
                                     
                                     <div className="flex items-center text-gray-600">
                                         <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                         </svg>
-                                        <span>{activityData.enrolledCount}/{activityData.totalCount}人</span>
+                                        <span>{currentParticipants}/{activityData.participantsLimit}人</span>
                                         {isFull && <span className="text-red-500 ml-2">(已满)</span>}
                                     </div>
                                     
@@ -246,7 +519,21 @@ function ActivityDetail() {
                                         <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
                                         </svg>
-                                        <span>组织者: {activityData.organizer}</span>
+                                        <span>组织者: {activityData.organizerName}</span>
+                                    </div>
+
+                                    <div className="flex items-center text-gray-600">
+                                        <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M7 4V2a1 1 0 011-1h4a1 1 0 011 1v2h4a1 1 0 011 1v1a1 1 0 01-1 1v9a2 2 0 01-2 2H6a2 2 0 01-2-2V7a1 1 0 01-1-1V5a1 1 0 011-1h4zM9 3v1h2V3H9zm3 6a1 1 0 012 0v6a1 1 0 11-2 0V9zm-4 0a1 1 0 012 0v6a1 1 0 11-2 0V9z" />
+                                        </svg>
+                                        <span>活动类型: {activityData.type}</span>
+                                    </div>
+
+                                    <div className="flex items-center text-gray-600">
+                                        <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" />
+                                        </svg>
+                                        <span>活动费用: {activityData.fee ? `¥${activityData.fee}` : '免费'}</span>
                                     </div>
                                 </div>
 
@@ -255,10 +542,28 @@ function ActivityDetail() {
                                     <h3 className="text-xl font-semibold text-gray-800 mb-4">活动简介</h3>
                                     <div className="bg-gray-50 rounded-lg p-4">
                                         <div className="text-gray-700 leading-relaxed whitespace-pre-line">
-                                            {activityData.introduction}
+                                            {activityData.profile || "暂无详细介绍"}
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* 多张图片展示 */}
+                                {imageUrls.length > 1 && (
+                                    <div className="mb-6">
+                                        <h3 className="text-xl font-semibold text-gray-800 mb-4">活动图片</h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                            {imageUrls.map((url, index) => (
+                                                <img
+                                                    key={index}
+                                                    src={url}
+                                                    alt={`活动图片 ${index + 1}`}
+                                                    className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                                    onClick={() => window.open(url, '_blank')}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -351,47 +656,50 @@ function ActivityDetail() {
 
                             {/* 评论列表 */}
                             <div className="space-y-4">
-                                {comments.map((comment) => (
-                                    <div key={comment.id} className="border-b border-gray-200 pb-4 last:border-b-0">
-                                        <div className="flex items-start space-x-3">
-                                            <img
-                                                src={comment.avatar}
-                                                alt={comment.user}
-                                                className="w-10 h-10 rounded-full"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <div className="flex items-center">
-                                                        <span className="font-medium text-gray-800 mr-2">{comment.user}</span>
-                                                        <div className="flex">
-                                                            {renderStars(comment.rating)}
+                                {comments.length > 0 ? (
+                                    comments.map((comment) => (
+                                        <div key={comment.id} className="border-b border-gray-200 pb-4 last:border-b-0">
+                                            <div className="flex items-start space-x-3">
+                                                <img
+                                                    src={comment.avatar}
+                                                    alt={comment.user}
+                                                    className="w-10 h-10 rounded-full"
+                                                />
+                                                <div className="flex-1">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <div className="flex items-center">
+                                                            <span className="font-medium text-gray-800 mr-2">{comment.user}</span>
+                                                            <div className="flex">
+                                                                {renderStars(comment.rating)}
+                                                            </div>
                                                         </div>
+                                                        <span className="text-sm text-gray-500">{comment.time}</span>
                                                     </div>
-                                                    <span className="text-sm text-gray-500">{comment.time}</span>
-                                                </div>
-                                                <p className="text-gray-700 leading-relaxed mb-2">{comment.content}</p>
+                                                    <p className="text-gray-700 leading-relaxed mb-2">{comment.content}</p>
                                                 
-                                                {/* 评论图片 */}
-                                                {comment.images && comment.images.length > 0 && (
-                                                    <div className="grid grid-cols-2 gap-2 mt-2">
-                                                        {comment.images.map((image, imgIndex) => (
-                                                            <img
-                                                                key={imgIndex}
-                                                                src={image}
-                                                                alt={`评论图片 ${imgIndex + 1}`}
-                                                                className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                                                onClick={() => {
-                                                                    // 这里可以添加图片预览功能
-                                                                    window.open(image, '_blank');
-                                                                }}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                    {/* 评论图片 */}
+                                                    {comment.images && comment.images.length > 0 && (
+                                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                                            {comment.images.map((image, imgIndex) => (
+                                                                <img
+                                                                    key={imgIndex}
+                                                                    src={image}
+                                                                    alt={`评论图片 ${imgIndex + 1}`}
+                                                                    className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                                                    onClick={() => window.open(image, '_blank')}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-8 text-gray-500">
+                                        暂无评价，快来成为第一个评价的人吧！
                                     </div>
-                                ))}
+                                )}
                             </div>
                         </div>
                     </div>
@@ -401,49 +709,80 @@ function ActivityDetail() {
                         <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
                             {/* 价格显示 */}
                             <div className="text-center mb-6">
-                                <div className="text-4xl font-bold text-green-600 mb-2">¥{activityData.fee}</div>
-                                <div className="text-gray-500">单次课程</div>
+                                <div className="text-4xl font-bold text-green-600 mb-2">
+                                    {activityData.fee ? `¥${activityData.fee}` : '免费'}
+                                </div>
+                                <div className="text-gray-500">单次活动</div>
                             </div>
 
                             {/* 报名进度 */}
                             <div className="mb-6">
                                 <div className="flex justify-between text-sm text-gray-600 mb-2">
                                     <span>报名进度</span>
-                                    <span>{activityData.enrolledCount}/{activityData.totalCount}人</span>
+                                    <span>{currentParticipants}/{activityData.participantsLimit}人</span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
                                     <div 
                                         className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                                        style={{ width: `${(activityData.enrolledCount / activityData.totalCount) * 100}%` }}
+                                        style={{ 
+                                            width: `${Math.min(
+                                                (currentParticipants / activityData.participantsLimit) * 100, 
+                                                100
+                                            )}%` 
+                                        }}
                                     ></div>
                                 </div>
+                            </div>
+
+                            {/* 状态标签 */}
+                            <div className="flex justify-center space-x-2 mb-4">
+                                {isFull && (
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                                        已满
+                                    </span>
+                                )}
+                                {isEnrolled && (
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-600">
+                                        已报名
+                                    </span>
+                                )}
+                                {isFavorited && (
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                                        已收藏
+                                    </span>
+                                )}
                             </div>
 
                             {/* 操作按钮 */}
                             <div className="space-y-3">
                                 <button
                                     onClick={handleEnroll}
-                                    disabled={isFull && !isEnrolled}
+                                    disabled={(isFull && !isEnrolled) || isOperating}
                                     className={`w-full py-3 px-4 rounded-lg font-medium transition duration-200 ${
-                                        isEnrolled
-                                            ? 'bg-green-500 text-white hover:bg-green-600'
+                                        isOperating
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : isEnrolled
+                                            ? 'bg-red-500 text-white hover:bg-red-600'
                                             : isFull
                                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                             : 'bg-blue-500 text-white hover:bg-blue-600'
                                     }`}
                                 >
-                                    {isEnrolled ? '已报名 - 点击取消' : isFull ? '名额已满' : '立即报名'}
+                                    {isOperating ? '处理中...' : (isEnrolled ? '取消报名' : isFull ? '名额已满' : '立即报名')}
                                 </button>
 
                                 <button
                                     onClick={handleFavorite}
+                                    disabled={isOperating}
                                     className={`w-full py-3 px-4 rounded-lg font-medium transition duration-200 border-2 ${
-                                        isFavorited
+                                        isOperating
+                                            ? 'border-gray-300 text-gray-500 cursor-not-allowed'
+                                            : isFavorited
                                             ? 'border-red-500 text-red-500 hover:bg-red-50'
                                             : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                                     }`}
                                 >
-                                    {isFavorited ? '已收藏' : '收藏活动'}
+                                    {isOperating ? '处理中...' : (isFavorited ? '已收藏' : '收藏活动')}
                                 </button>
                             </div>
                         </div>

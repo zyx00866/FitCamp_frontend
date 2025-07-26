@@ -16,7 +16,8 @@ function CreateActivityPage() {
         imageFiles: [], // 存储File对象，而不是URL
         participantsLimit: '',
         type: '健身',
-        organizerName: ''
+        organizerName: '',
+        fee: 0 // 添加价格字段，默认为0（免费）
     });
 
     // 表单验证错误
@@ -111,6 +112,11 @@ function CreateActivityPage() {
 
         if (!formData.organizerName.trim()) {
             newErrors.organizerName = '组织者姓名不能为空';
+        }
+
+        // 价格验证
+        if (formData.fee < 0) {
+            newErrors.fee = '活动价格不能为负数';
         }
 
         // 检查时间是否为未来时间
@@ -266,11 +272,13 @@ function CreateActivityPage() {
                 profile: formData.profile,
                 date: new Date(formData.date).toISOString(),
                 location: formData.location,
-                picture: pictureString, // 发送字符串格式
+                picture: pictureString,
                 participantsLimit: parseInt(formData.participantsLimit),
                 type: formData.type,
                 organizerName: formData.organizerName,
-                organizerId: currentUser.id
+                fee: parseFloat(formData.fee) || 0,
+                createTime: new Date().toISOString(), // 添加创建时间
+                organizerId: currentUser.id // 添加组织者ID
             };
 
             console.log('完整的活动数据:', activityData);
@@ -331,7 +339,18 @@ function CreateActivityPage() {
                 {/* 页面标题 */}
                 <div className="bg-white rounded-lg shadow-md p-6 mb-6">
                     <div className="flex items-center justify-between">
-                        <h1 className="text-3xl font-bold text-gray-800">创建新活动</h1>
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-800">创建新活动</h1>
+                            <p className="text-sm text-gray-500 mt-1">
+                                创建时间: {new Date().toLocaleString('zh-CN', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })}
+                            </p>
+                        </div>
                         <button
                             onClick={() => navigate('/')}
                             className="px-4 py-2 text-gray-600 hover:text-gray-800 transition duration-200"
@@ -344,6 +363,23 @@ function CreateActivityPage() {
                 {/* 创建表单 */}
                 <div className="bg-white rounded-lg shadow-md p-6">
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* 基本信息说明 */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start">
+                                <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                <div>
+                                    <h3 className="text-sm font-medium text-blue-800 mb-1">活动信息</h3>
+                                    <div className="text-sm text-blue-700 space-y-1">
+                                        <p>• 组织者: {currentUser?.name || '未知'}</p>
+                                        <p>• 创建时间: {new Date().toLocaleString('zh-CN')}</p>
+                                        <p>• 活动将在审核通过后对所有用户可见</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* 活动标题 */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -361,8 +397,8 @@ function CreateActivityPage() {
                             {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
                         </div>
 
-                        {/* 活动类型和参与人数限制 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* 活动类型、参与人数限制和价格 */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     活动类型 <span className="text-red-500">*</span>
@@ -393,6 +429,30 @@ function CreateActivityPage() {
                                     placeholder="请输入参与人数限制"
                                 />
                                 {errors.participantsLimit && <p className="text-red-500 text-sm mt-1">{errors.participantsLimit}</p>}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    活动价格 <span className="text-gray-500">(元)</span>
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">¥</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={formData.fee}
+                                        onChange={(e) => handleInputChange('fee', e.target.value)}
+                                        className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                            errors.fee ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                {errors.fee && <p className="text-red-500 text-sm mt-1">{errors.fee}</p>}
+                                <p className="text-xs text-gray-500 mt-1">
+                                    输入0表示免费活动
+                                </p>
                             </div>
                         </div>
 
@@ -562,11 +622,28 @@ function CreateActivityPage() {
                                         {imageUploading ? '上传图片中...' : '创建中...'}
                                     </>
                                 ) : (
-                                    '创建活动'
+                                    <>
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        创建活动
+                                    </>
                                 )}
                             </button>
                         </div>
                     </form>
+
+                    {/* 创建活动说明 */}
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                        <h3 className="text-sm font-medium text-gray-800 mb-2">创建说明</h3>
+                        <div className="text-xs text-gray-600 space-y-1">
+                            <p>• 活动创建后会自动记录创建时间</p>
+                            <p>• 所有必填字段都需要完整填写</p>
+                            <p>• 活动时间必须设置为未来时间</p>
+                            <p>• 图片将在提交时自动上传到服务器</p>
+                            <p>• 创建成功后会自动跳转到首页</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
