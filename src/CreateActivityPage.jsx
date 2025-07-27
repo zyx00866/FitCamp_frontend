@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import sessionUserManager from './SessionUserManager';
 
 function CreateActivityPage() {
     const navigate = useNavigate();
@@ -7,60 +8,67 @@ function CreateActivityPage() {
     const [imageUploading, setImageUploading] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     
-    // 表单数据状态 - 改为存储File对象
+    // 表单数据状态
     const [formData, setFormData] = useState({
         title: '',
         profile: '',
         date: '',
         location: '',
-        imageFiles: [], // 存储File对象，而不是URL
+        imageFiles: [],
         participantsLimit: '',
         type: '健身',
         organizerName: '',
-        fee: 0 // 添加价格字段，默认为0（免费）
+        fee: 0
     });
 
-    // 表单验证错误
     const [errors, setErrors] = useState({});
-
-    // 活动类型选项（对应ActivityType）
     const activityTypes = ['健身', '游泳', '跑步', '舞蹈', '足球', '羽毛球', '篮球', '其它'];
 
     // 获取当前用户信息
     useEffect(() => {
         const fetchUserInfo = async () => {
-            const token = localStorage.getItem('token');
+            const token = sessionUserManager.getCurrentToken();
+            const user = sessionUserManager.getCurrentUser();
             
-            if (!token) {
+            if (!token || !user) {
                 alert('请先登录');
                 navigate('/loginpage');
                 return;
             }
 
             try {
-                const response = await fetch('http://localhost:7001/user/userInfo', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('获取用户信息失败');
-                }
-
-                const data = await response.json();
+                // 直接使用 sessionStorage 中的用户信息，避免不必要的验证
+                setCurrentUser(user);
+                setFormData(prev => ({
+                    ...prev,
+                    organizerName: user.name || ''
+                }));
                 
-                if (data.success) {
-                    setCurrentUser(data.data);
-                    setFormData(prev => ({
-                        ...prev,
-                        organizerName: data.data.name || ''
-                    }));
-                } else {
-                    throw new Error(data.message || '获取用户信息失败');
+                console.log(`标签页 ${sessionUserManager.getTabId()} 当前用户:`, user.name);
+                
+                // 可选：验证token是否仍然有效（但不强制）
+                try {
+                    const response = await fetch('http://localhost:7001/user/userInfo', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        sessionUserManager.updateTabActivity();
+                    } else if (response.status === 401) {
+                        // 只有在401时才认为过期
+                        alert('登录已过期，请重新登录');
+                        sessionUserManager.logout();
+                        navigate('/loginpage');
+                        return;
+                    }
+                } catch (verifyError) {
+                    console.warn('Token验证失败，但继续使用本地用户信息:', verifyError);
                 }
+                
             } catch (error) {
                 console.error('获取用户信息错误:', error);
                 alert('获取用户信息失败，请重新登录');
@@ -69,6 +77,23 @@ function CreateActivityPage() {
         };
 
         fetchUserInfo();
+
+        // 监听当前标签页的登录状态变化
+        const handleUserLogin = () => {
+            fetchUserInfo();
+        };
+
+        const handleUserLogout = () => {
+            navigate('/loginpage');
+        };
+
+        window.addEventListener('sessionUserLogin', handleUserLogin);
+        window.addEventListener('sessionUserLogout', handleUserLogout);
+        
+        return () => {
+            window.removeEventListener('sessionUserLogin', handleUserLogin);
+            window.removeEventListener('sessionUserLogout', handleUserLogout);
+        };
     }, [navigate]);
 
     // 处理输入变化
@@ -242,7 +267,7 @@ function CreateActivityPage() {
             return;
         }
 
-        const token = localStorage.getItem('token');
+        const token = sessionUserManager.getCurrentToken();
         if (!token) {
             alert('请先登录');
             navigate('/loginpage');
@@ -253,6 +278,7 @@ function CreateActivityPage() {
             setIsLoading(true);
 
             console.log('当前用户信息:', currentUser);
+            console.log('当前标签页ID:', sessionUserManager.getTabId());
             console.log('提交活动数据:', formData);
 
             // 先上传图片
@@ -277,8 +303,9 @@ function CreateActivityPage() {
                 type: formData.type,
                 organizerName: formData.organizerName,
                 fee: parseFloat(formData.fee) || 0,
-                createTime: new Date().toISOString(), // 添加创建时间
-                organizerId: currentUser.id // 添加组织者ID
+                createTime: new Date().toISOString(),
+                organizerId: currentUser.id,
+                createdFromTab: sessionUserManager.getTabId() // 记录创建来源标签页
             };
 
             console.log('完整的活动数据:', activityData);
@@ -323,11 +350,18 @@ function CreateActivityPage() {
 
     // 如果用户信息还在加载中，显示加载状态
     if (!currentUser) {
+        const loginStats = sessionUserManager.getLoginStats();
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
                     <p className="text-gray-600">正在加载用户信息...</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                        标签页ID: {sessionUserManager.getTabId().slice(-8)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                        活跃标签页数: {loginStats.totalTabs}
+                    </p>
                 </div>
             </div>
         );
@@ -341,15 +375,6 @@ function CreateActivityPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-800">创建新活动</h1>
-                            <p className="text-sm text-gray-500 mt-1">
-                                创建时间: {new Date().toLocaleString('zh-CN', {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                })}
-                            </p>
                         </div>
                         <button
                             onClick={() => navigate('/')}
@@ -363,23 +388,6 @@ function CreateActivityPage() {
                 {/* 创建表单 */}
                 <div className="bg-white rounded-lg shadow-md p-6">
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* 基本信息说明 */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <div className="flex items-start">
-                                <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <div>
-                                    <h3 className="text-sm font-medium text-blue-800 mb-1">活动信息</h3>
-                                    <div className="text-sm text-blue-700 space-y-1">
-                                        <p>• 组织者: {currentUser?.name || '未知'}</p>
-                                        <p>• 创建时间: {new Date().toLocaleString('zh-CN')}</p>
-                                        <p>• 活动将在审核通过后对所有用户可见</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         {/* 活动标题 */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -633,17 +641,6 @@ function CreateActivityPage() {
                         </div>
                     </form>
 
-                    {/* 创建活动说明 */}
-                    <div className="mt-6 pt-6 border-t border-gray-200">
-                        <h3 className="text-sm font-medium text-gray-800 mb-2">创建说明</h3>
-                        <div className="text-xs text-gray-600 space-y-1">
-                            <p>• 活动创建后会自动记录创建时间</p>
-                            <p>• 所有必填字段都需要完整填写</p>
-                            <p>• 活动时间必须设置为未来时间</p>
-                            <p>• 图片将在提交时自动上传到服务器</p>
-                            <p>• 创建成功后会自动跳转到首页</p>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

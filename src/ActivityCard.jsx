@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import sessionUserManager from './SessionUserManager';
 
 function ActivityCard({ activity }) {
     const [isFavorited, setIsFavorited] = useState(false);
@@ -24,21 +25,10 @@ function ActivityCard({ activity }) {
     // 计算当前参与人数 - 从participants数组的长度获取
     const currentParticipants = participants ? participants.length : 0;
 
-    // 获取当前用户信息
-    const getCurrentUser = () => {
-        try {
-            const userStr = localStorage.getItem('user');
-            return userStr ? JSON.parse(userStr) : null;
-        } catch (error) {
-            console.error('解析用户信息失败:', error);
-            return null;
-        }
-    };
-
-    // 检查用户登录状态
+    // 检查用户登录状态 - 使用sessionUserManager
     const checkAuth = () => {
-        const token = localStorage.getItem('token');
-        const user = getCurrentUser();
+        const token = sessionUserManager.getCurrentToken();
+        const user = sessionUserManager.getCurrentUser();
         
         if (!token || !user) {
             alert('请先登录');
@@ -51,8 +41,8 @@ function ActivityCard({ activity }) {
     // 检查初始状态（从后端获取用户的收藏和报名状态）
     useEffect(() => {
         const checkInitialStatus = async () => {
-            const user = getCurrentUser();
-            const token = localStorage.getItem('token');
+            const user = sessionUserManager.getCurrentUser();
+            const token = sessionUserManager.getCurrentToken();
             
             if (!user || !token || !id) return;
 
@@ -65,6 +55,15 @@ function ActivityCard({ activity }) {
                         'Content-Type': 'application/json',
                     }
                 });
+
+                console.log('检查活动状态响应:', response.status);
+
+                if (response.status === 401) {
+                    // Token过期，使用sessionUserManager登出
+                    console.log('Token已过期，自动登出');
+                    sessionUserManager.logout();
+                    return;
+                }
 
                 if (response.ok) {
                     const data = await response.json();
@@ -98,6 +97,9 @@ function ActivityCard({ activity }) {
                             setIsFavorited(isFavoritedActivity);
                             console.log('收藏状态检查:', { activityId: id, isFavorited: isFavoritedActivity });
                         }
+                        
+                        // 更新活跃状态
+                        sessionUserManager.updateTabActivity();
                     }
                 }
             } catch (error) {
@@ -107,9 +109,27 @@ function ActivityCard({ activity }) {
         };
 
         checkInitialStatus();
+
+        // 监听登录状态变化
+        const handleUserLogin = () => {
+            checkInitialStatus();
+        };
+
+        const handleUserLogout = () => {
+            setIsFavorited(false);
+            setIsEnrolled(false);
+        };
+
+        window.addEventListener('sessionUserLogin', handleUserLogin);
+        window.addEventListener('sessionUserLogout', handleUserLogout);
+
+        return () => {
+            window.removeEventListener('sessionUserLogin', handleUserLogin);
+            window.removeEventListener('sessionUserLogout', handleUserLogout);
+        };
     }, [id]);
 
-    // 报名功能
+    // 报名功能 - 使用sessionUserManager
     const handleEnroll = async () => {
         if (!checkAuth()) return;
         if (isEnrolled || isLoading) return;
@@ -118,8 +138,8 @@ function ActivityCard({ activity }) {
             return;
         }
 
-        const user = getCurrentUser();
-        const token = localStorage.getItem('token');
+        const user = sessionUserManager.getCurrentUser();
+        const token = sessionUserManager.getCurrentToken();
 
         // 添加用户和token的验证
         if (!user || !user.id) {
@@ -134,7 +154,8 @@ function ActivityCard({ activity }) {
                 userId: user.id, 
                 activityId: String(id),
                 currentParticipants,
-                participantsLimit 
+                participantsLimit,
+                tabId: sessionUserManager.getTabId()
             });
 
             const response = await fetch('http://localhost:7001/activity/signup', {
@@ -151,6 +172,14 @@ function ActivityCard({ activity }) {
 
             console.log('报名响应状态:', response.status);
 
+            if (response.status === 401) {
+                // Token过期，使用sessionUserManager登出
+                alert('登录已过期，请重新登录');
+                sessionUserManager.logout();
+                navigate('/loginpage');
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(`报名失败: ${response.status}`);
             }
@@ -162,8 +191,17 @@ function ActivityCard({ activity }) {
                 setIsEnrolled(true);
                 console.log('报名成功:', title);
                 
-                // 直接刷新页面，不显示成功提示
-                window.location.reload();
+                // 更新活跃状态
+                sessionUserManager.updateTabActivity();
+                
+                // 不要刷新页面，而是重新检查状态
+                setTimeout(() => {
+                    setIsLoading(false);
+                    // 可选：发送自定义事件通知其他组件更新
+                    window.dispatchEvent(new CustomEvent('activityStatusChanged', {
+                        detail: { activityId: id, action: 'enroll' }
+                    }));
+                }, 500);
             } else {
                 throw new Error(data.message || '报名失败');
             }
@@ -175,13 +213,13 @@ function ActivityCard({ activity }) {
         }
     };
 
-    // 取消报名功能
+    // 取消报名功能 - 使用sessionUserManager
     const handleCancelEnroll = async () => {
         if (!checkAuth()) return;
         if (!isEnrolled || isLoading) return;
 
-        const user = getCurrentUser();
-        const token = localStorage.getItem('token');
+        const user = sessionUserManager.getCurrentUser();
+        const token = sessionUserManager.getCurrentToken();
 
         // 添加用户和token的验证
         if (!user || !user.id) {
@@ -196,7 +234,8 @@ function ActivityCard({ activity }) {
                 userId: user.id, 
                 activityId: String(id),
                 currentParticipants,
-                participantsLimit 
+                participantsLimit,
+                tabId: sessionUserManager.getTabId()
             });
 
             const response = await fetch('http://localhost:7001/activity/leave', {
@@ -213,6 +252,14 @@ function ActivityCard({ activity }) {
 
             console.log('取消报名响应状态:', response.status);
 
+            if (response.status === 401) {
+                // Token过期，使用sessionUserManager登出
+                alert('登录已过期，请重新登录');
+                sessionUserManager.logout();
+                navigate('/loginpage');
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(`取消报名失败: ${response.status}`);
             }
@@ -224,8 +271,16 @@ function ActivityCard({ activity }) {
                 setIsEnrolled(false);
                 console.log('取消报名成功:', title);
                 
-                // 直接刷新页面，不显示成功提示
-                window.location.reload();
+                // 更新活跃状态
+                sessionUserManager.updateTabActivity();
+                
+                // 不要刷新页面
+                setTimeout(() => {
+                    setIsLoading(false);
+                    window.dispatchEvent(new CustomEvent('activityStatusChanged', {
+                        detail: { activityId: id, action: 'cancelEnroll' }
+                    }));
+                }, 500);
             } else {
                 throw new Error(data.message || '取消报名失败');
             }
@@ -237,13 +292,13 @@ function ActivityCard({ activity }) {
         }
     };
 
-    // 收藏功能
+    // 收藏功能 - 使用sessionUserManager
     const handleFavorite = async () => {
         if (!checkAuth()) return;
         if (isLoading) return;
 
-        const user = getCurrentUser();
-        const token = localStorage.getItem('token');
+        const user = sessionUserManager.getCurrentUser();
+        const token = sessionUserManager.getCurrentToken();
 
         // 添加用户和token的验证
         if (!user || !user.id) {
@@ -258,7 +313,11 @@ function ActivityCard({ activity }) {
             const endpoint = isFavorited ? 'unfavourite' : 'favourite';
             const action = isFavorited ? '取消收藏' : '收藏';
             
-            console.log(`正在${action}:`, { userId: user.id, activityId: String(id) });
+            console.log(`正在${action}:`, { 
+                userId: user.id, 
+                activityId: String(id),
+                tabId: sessionUserManager.getTabId()
+            });
 
             const response = await fetch(`http://localhost:7001/activity/${endpoint}`, {
                 method: 'POST',
@@ -274,6 +333,14 @@ function ActivityCard({ activity }) {
 
             console.log(`${action}响应状态:`, response.status);
 
+            if (response.status === 401) {
+                // Token过期，使用sessionUserManager登出
+                alert('登录已过期，请重新登录');
+                sessionUserManager.logout();
+                navigate('/loginpage');
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(`${action}失败: ${response.status}`);
             }
@@ -285,8 +352,16 @@ function ActivityCard({ activity }) {
                 setIsFavorited(!isFavorited);
                 console.log(`${action}成功:`, title);
                 
-                // 直接刷新页面，不显示成功提示
-                window.location.reload();
+                // 更新活跃状态
+                sessionUserManager.updateTabActivity();
+                
+                // 不要刷新页面
+                setTimeout(() => {
+                    setIsLoading(false);
+                    window.dispatchEvent(new CustomEvent('activityStatusChanged', {
+                        detail: { activityId: id, action: 'favorite' }
+                    }));
+                }, 500);
             } else {
                 throw new Error(data.message || `${action}失败`);
             }
@@ -372,6 +447,7 @@ function ActivityCard({ activity }) {
 
     return (
         <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden max-w-sm hover:shadow-xl transition-shadow duration-300">
+
             {/* 活动图片 */}
             {imageUrl ? (
                 <div className="h-48 bg-gray-200 overflow-hidden relative">

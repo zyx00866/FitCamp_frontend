@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import sessionUserManager from './SessionUserManager';
 
 function UserPage() {
     const navigate = useNavigate();
@@ -14,12 +15,14 @@ function UserPage() {
     // 用户数据
     const [userData, setUserData] = useState(null);
 
-    // 获取用户信息
+    // 获取用户信息 - 修复验证逻辑
     useEffect(() => {
         const fetchUserInfo = async () => {
-            const token = localStorage.getItem('token');
+            // 使用 sessionUserManager 获取 token 和用户信息
+            const token = sessionUserManager.getCurrentToken();
+            const currentUser = sessionUserManager.getCurrentUser();
             
-            if (!token) {
+            if (!token || !currentUser) {
                 setError('未登录，请先登录');
                 navigate('/loginpage');
                 return;
@@ -27,6 +30,8 @@ function UserPage() {
 
             try {
                 setIsLoading(true);
+                
+                // 直接请求用户信息，不使用 validateToken
                 const response = await fetch('http://localhost:7001/user/userInfo', {
                     method: 'GET',
                     headers: {
@@ -42,15 +47,21 @@ function UserPage() {
                     if (data.success && data.data) {
                         setUserData(data.data);
                         setError('');
+                        
+                        // 请求成功后更新活跃状态
+                        sessionUserManager.updateTabActivity();
                     } else {
                         setError(data.message || '获取用户信息失败');
                     }
-                } else {
-                    // token可能过期
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
+                } else if (response.status === 401) {
+                    // 只有在401时才认为是token过期
+                    console.log('Token已过期');
+                    sessionUserManager.logout();
                     setError('登录已过期，请重新登录');
                     navigate('/loginpage');
+                } else {
+                    // 其他错误
+                    setError(`获取用户信息失败: ${response.status}`);
                 }
             } catch (error) {
                 console.error('获取用户信息错误:', error);
@@ -61,19 +72,35 @@ function UserPage() {
         };
 
         fetchUserInfo();
+
+        // 监听当前标签页的登录状态变化
+        const handleUserLogin = () => {
+            fetchUserInfo();
+        };
+
+        const handleUserLogout = () => {
+            navigate('/loginpage');
+        };
+
+        window.addEventListener('sessionUserLogin', handleUserLogin);
+        window.addEventListener('sessionUserLogout', handleUserLogout);
+        
+        return () => {
+            window.removeEventListener('sessionUserLogin', handleUserLogin);
+            window.removeEventListener('sessionUserLogout', handleUserLogout);
+        };
     }, [navigate]);
 
     const handleBack = () => {
         navigate('/');
     };
 
-    // 退出登录功能
+    // 退出登录功能 - 修改为使用 sessionUserManager
     const handleLogout = () => {
         // 确认对话框
         if (window.confirm('确定要退出登录吗？')) {
-            // 清除本地存储的用户信息和token
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            // 使用 sessionUserManager 登出
+            sessionUserManager.logout();
             
             // 跳转到首页
             navigate('/');
@@ -97,7 +124,7 @@ function UserPage() {
             return;
         }
 
-        const token = localStorage.getItem('token');
+        const token = sessionUserManager.getCurrentToken();
         
         try {
             const response = await fetch('http://localhost:7001/user/updateProfile', {
@@ -155,7 +182,7 @@ function UserPage() {
         const file = event.target.files[0];
         if (!file) return;
 
-        const token = localStorage.getItem('token');
+        const token = sessionUserManager.getCurrentToken();
         
         // 验证文件类型
         if (!file.type.startsWith('image/')) {
@@ -300,7 +327,7 @@ function UserPage() {
             return;
         }
 
-        const token = localStorage.getItem('token');
+        const token = sessionUserManager.getCurrentToken();
         
         try {
             const response = await fetch('http://localhost:7001/activity/leave', {
@@ -363,9 +390,14 @@ function UserPage() {
         }
     };
 
-    // 计算统计数据
+    // 修改统计数据计算函数
     const getStatistics = () => {
-        if (!userData) return { totalActivities: 0, completedActivities: 0, favoriteActivities: 0 };
+        if (!userData) return { 
+            totalActivities: 0, 
+            completedActivities: 0, 
+            favoriteActivities: 0, 
+            createdActivities: 0 
+        };
         
         return {
             totalActivities: userData.activities ? userData.activities.length : 0,
@@ -373,9 +405,13 @@ function UserPage() {
                 const activityDate = new Date(activity.date);
                 return activityDate < new Date() || activity.status === 0;
             }).length : 0,
-            favoriteActivities: userData.favoriteActivities ? userData.favoriteActivities.length : 0
+            favoriteActivities: userData.favoriteActivities ? userData.favoriteActivities.length : 0,
+            createdActivities: userData.createdActivities ? userData.createdActivities.length : 0
         };
     };
+
+    // 获取当前登录统计（用于显示多标签页信息）
+    const loginStats = sessionUserManager.getLoginStats();
 
     // 加载状态
     if (isLoading) {
@@ -384,6 +420,12 @@ function UserPage() {
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
                     <p className="text-gray-600">正在加载用户信息...</p>
+                    {loginStats && loginStats.totalTabs > 1 && (
+                        <p className="text-xs text-gray-500 mt-2">
+                            标签页: {sessionUserManager.getTabId().slice(-6)} | 
+                            活跃标签页: {loginStats.totalTabs}
+                        </p>
+                    )}
                 </div>
             </div>
         );
@@ -433,12 +475,15 @@ function UserPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
                             </svg>
                             返回首页
-                        </button>
-                        <h1 className="text-2xl font-bold text-gray-800">个人中心</h1>
+                        </button
+                        >
+                        
+                        <div className="text-center">
+                            <h1 className="text-2xl font-bold text-gray-800">个人中心</h1>
+                        </div>
                         
                         {/* 右侧按钮组 */}
                         <div className="flex items-center space-x-3">
-                            
                             {/* 退出登录按钮 */}
                             <button
                                 onClick={handleLogout}
@@ -582,8 +627,8 @@ function UserPage() {
                                             <div className="text-sm text-gray-600">收藏活动</div>
                                         </div>
                                         <div className="text-center p-3 bg-orange-50 rounded-lg">
-                                            <div className="text-2xl font-bold text-orange-600">{userData.comments ? userData.comments.length : 0}</div>
-                                            <div className="text-sm text-gray-600">评论数</div>
+                                            <div className="text-2xl font-bold text-orange-600">{statistics.createdActivities}</div>
+                                            <div className="text-sm text-gray-600">创建活动</div>
                                         </div>
                                     </div>
 
@@ -673,7 +718,7 @@ function UserPage() {
                                                             {/* 参与人数 */}
                                                             <div className="flex items-center">
                                                                 <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                                                                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 005 5v1H1v-1a5 5 0 015-5z" />
                                                                 </svg>
                                                                 <span>
                                                                     {currentParticipants}/{activity.participantsLimit}人
