@@ -194,14 +194,11 @@ function ActivityCard({ activity }) {
                 // 更新活跃状态
                 sessionUserManager.updateTabActivity();
                 
-                // 不要刷新页面，而是重新检查状态
+                // 延迟刷新页面以确保状态更新
                 setTimeout(() => {
-                    setIsLoading(false);
-                    // 可选：发送自定义事件通知其他组件更新
-                    window.dispatchEvent(new CustomEvent('activityStatusChanged', {
-                        detail: { activityId: id, action: 'enroll' }
-                    }));
+                    window.location.reload();
                 }, 500);
+                
             } else {
                 throw new Error(data.message || '报名失败');
             }
@@ -274,13 +271,11 @@ function ActivityCard({ activity }) {
                 // 更新活跃状态
                 sessionUserManager.updateTabActivity();
                 
-                // 不要刷新页面
+                // 延迟刷新页面以确保状态更新
                 setTimeout(() => {
-                    setIsLoading(false);
-                    window.dispatchEvent(new CustomEvent('activityStatusChanged', {
-                        detail: { activityId: id, action: 'cancelEnroll' }
-                    }));
+                    window.location.reload();
                 }, 500);
+                
             } else {
                 throw new Error(data.message || '取消报名失败');
             }
@@ -355,13 +350,11 @@ function ActivityCard({ activity }) {
                 // 更新活跃状态
                 sessionUserManager.updateTabActivity();
                 
-                // 不要刷新页面
+                // 延迟刷新页面以确保状态更新
                 setTimeout(() => {
-                    setIsLoading(false);
-                    window.dispatchEvent(new CustomEvent('activityStatusChanged', {
-                        detail: { activityId: id, action: 'favorite' }
-                    }));
+                    window.location.reload();
                 }, 500);
+                
             } else {
                 throw new Error(data.message || `${action}失败`);
             }
@@ -521,7 +514,7 @@ function ActivityCard({ activity }) {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
                             <svg className="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" />
+                                <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM6 13a1 1 0 011-1h1a1 1 0 110 2H7a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" />
                             </svg>
                             <span className="text-sm text-gray-600">参与费用</span>
                         </div>
