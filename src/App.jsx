@@ -18,23 +18,29 @@ function App() {
   const [isLoading, setIsLoading] = useState(false); // 加载状态
   const [error, setError] = useState(''); // 错误信息
   const [totalPages, setTotalPages] = useState(1); // 总页数
+  const [searchKeyword, setSearchKeyword] = useState(''); // 搜索关键词
   
   const categories = ['全部', '健身', '游泳', '跑步', '舞蹈', '足球', '羽毛球', '篮球', '其它'];
 
-  // 获取活动列表的函数
-  const fetchActivities = async (category, page) => {
+  // 获取活动列表的函数 - 修改为支持搜索
+  const fetchActivities = async (category, page, keyword = '') => {
     try {
       setIsLoading(true);
       setError('');
       
-      console.log('正在获取活动列表:', { category, page });
+      console.log('正在获取活动列表:', { category, page, keyword });
       
       // 修改参数构建方式
       const params = new URLSearchParams();
       
-      // 改用 type 参数，并且只有非"全部"时才添加
-      if (category !== '全部') {
-        params.append('type', category); // 改为 type 参数
+      // 如果有搜索关键词，使用搜索接口
+      if (keyword && keyword.trim()) {
+        params.append('keyword', keyword.trim());
+      } else {
+        // 没有搜索关键词时，使用分类筛选
+        if (category !== '全部') {
+          params.append('type', category);
+        }
       }
       
       params.append('page', page.toString());
@@ -79,25 +85,42 @@ function App() {
 
   // 页面加载时获取初始数据
   useEffect(() => {
-    fetchActivities(selectedCategory, currentPage);
+    fetchActivities(selectedCategory, currentPage, searchKeyword);
   }, []); // 只在组件挂载时执行一次
 
-  // 当分类或页码改变时重新获取数据
+  // 当分类、页码或搜索关键词改变时重新获取数据
   useEffect(() => {
-    fetchActivities(selectedCategory, currentPage);
-  }, [selectedCategory, currentPage]);
+    fetchActivities(selectedCategory, currentPage, searchKeyword);
+  }, [selectedCategory, currentPage, searchKeyword]);
 
   // 处理分类切换
   const handleCategoryChange = (category) => {
     console.log('切换分类到:', category);
     setSelectedCategory(category);
     setCurrentPage(1); // 切换分类时重置到第一页
+    setSearchKeyword(''); // 切换分类时清空搜索关键词
   };
 
   // 处理页码切换
   const handlePageChange = (page) => {
     console.log('切换到第', page, '页');
     setCurrentPage(page);
+  };
+
+  // 处理搜索
+  const handleSearch = (keyword) => {
+    console.log('搜索关键词:', keyword);
+    setSearchKeyword(keyword);
+    setCurrentPage(1); // 搜索时重置到第一页
+    if (keyword.trim()) {
+      setSelectedCategory('全部'); // 搜索时重置分类为全部
+    }
+  };
+
+  // 清除搜索
+  const handleClearSearch = () => {
+    setSearchKeyword('');
+    setCurrentPage(1);
   };
 
   const navigate = useNavigate();
@@ -114,36 +137,61 @@ function App() {
               <p className="font-bold text-4xl text-red-400 ">FitCamp</p>
               <img src={fitcamp} alt="FitCamp Logo" className="w-12 h-12 rounded-full ml-3" />
             </div>
-            <SearchBox />
+            <SearchBox 
+              onSearch={handleSearch} 
+              onClear={handleClearSearch}
+              currentKeyword={searchKeyword}
+            />
           </div>
           <UserButton onUserClick={handleLoginClick}/>
           
-          {/* 分类按钮 */}
-          <div className="w-full mt-8 mb-6 px-4">
-            <div className="flex justify-center space-x-3 bg-gray-100 p-2 rounded-full w-full">
-              {categories.map((category) => (
+          {/* 搜索状态提示 */}
+          {searchKeyword && (
+            <div className="w-full px-4 mt-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                <span className="text-blue-700">
+                  搜索结果: "{searchKeyword}" ({activities.length} 个活动)
+                </span>
                 <button
-                  key={category}
-                  onClick={() => handleCategoryChange(category)}
-                  disabled={isLoading} // 加载时禁用按钮
-                  className={`flex-1 py-2 rounded-full font-medium transition duration-200 ${
-                    selectedCategory === category
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-blue-500'
-                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleClearSearch}
+                  className="text-blue-500 hover:text-blue-700 text-sm"
                 >
-                  {category}
+                  清除搜索
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
+          )}
+          
+          {/* 分类按钮 - 只在非搜索状态下显示 */}
+          {!searchKeyword && (
+            <div className="w-full mt-8 mb-6 px-4">
+              <div className="flex justify-center space-x-3 bg-gray-100 p-2 rounded-full w-full">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => handleCategoryChange(category)}
+                    disabled={isLoading}
+                    className={`flex-1 py-2 rounded-full font-medium transition duration-200 ${
+                      selectedCategory === category
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-blue-500'
+                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           
           {/* 加载状态 */}
           {isLoading && (
             <div className="w-full px-4 py-8 text-center">
               <div className="inline-flex items-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-3"></div>
-                <span className="text-gray-600">正在加载活动列表...</span>
+                <span className="text-gray-600">
+                  {searchKeyword ? '正在搜索活动...' : '正在加载活动列表...'}
+                </span>
               </div>
             </div>
           )}
@@ -154,7 +202,7 @@ function App() {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
                 <p className="text-red-600">{error}</p>
                 <button
-                  onClick={() => fetchActivities(selectedCategory, currentPage)}
+                  onClick={() => fetchActivities(selectedCategory, currentPage, searchKeyword)}
                   className="mt-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-200"
                 >
                   重试
@@ -171,14 +219,21 @@ function App() {
                   {activities.map((activity, index) => (
                     <ActivityCard 
                       key={activity.id || index} 
-                      activity={activity} // 传递活动数据给ActivityCard
+                      activity={activity}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <div className="text-gray-400 text-lg mb-2">暂无活动</div>
-                  <div className="text-gray-500">当前分类下没有找到任何活动</div>
+                  <div className="text-gray-400 text-lg mb-2">
+                    {searchKeyword ? '未找到相关活动' : '暂无活动'}
+                  </div>
+                  <div className="text-gray-500">
+                    {searchKeyword 
+                      ? `没有找到包含 "${searchKeyword}" 的活动，请尝试其他关键词`
+                      : '当前分类下没有找到任何活动'
+                    }
+                  </div>
                 </div>
               )}
             </div>
@@ -194,6 +249,7 @@ function App() {
           )}
         </>
       } />
+      
       <Route path="/loginpage" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/userpage" element={<UserPage />} />
