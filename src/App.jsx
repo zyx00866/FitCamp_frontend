@@ -10,6 +10,7 @@ import RegisterPage from './RegisterPage.jsx'
 import UserPage from './UserPage.jsx'
 import ActivityDetail from './ActivityDetail.jsx'
 import CreateActivityPage from './CreateActivityPage.jsx'
+import ManageCreatedActivityPage from './ManageActivityPage.jsx'
 
 function App() {
   const [selectedCategory, setSelectedCategory] = useState('全部');
@@ -255,6 +256,7 @@ function App() {
       <Route path="/userpage" element={<UserPage />} />
       <Route path="/activitydetail" element={<ActivityDetail />} />
       <Route path="/createactivity" element={<CreateActivityPage />} />
+      <Route path="/managecreatedactivity" element={<ManageCreatedActivityPage />} />
     </Routes>
   )
 }

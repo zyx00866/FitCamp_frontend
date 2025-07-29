@@ -46,7 +46,7 @@ function CreateActivityPage() {
                 
                 console.log(`标签页 ${sessionUserManager.getTabId()} 当前用户:`, user.name);
                 
-                // 可选：验证token是否仍然有效（但不强制）
+
                 try {
                     const response = await fetch('http://localhost:7001/user/userInfo', {
                         method: 'GET',
@@ -200,7 +200,7 @@ function CreateActivityPage() {
 
     // 上传图片到服务器
     const uploadImages = async (files) => {
-        const token = localStorage.getItem('token');
+        const token = sessionUserManager.getCurrentToken();
         const uploadedUrls = [];
 
         console.log(`开始上传${files.length}张图片...`);
@@ -305,7 +305,8 @@ function CreateActivityPage() {
                 fee: parseFloat(formData.fee) || 0,
                 createTime: new Date().toISOString(),
                 organizerId: currentUser.id,
-                createdFromTab: sessionUserManager.getTabId() // 记录创建来源标签页
+                createdFromTab: sessionUserManager.getTabId(), // 记录创建来源标签页
+                creatorId: currentUser.id
             };
 
             console.log('完整的活动数据:', activityData);

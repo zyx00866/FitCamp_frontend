@@ -78,7 +78,7 @@ function LoginPage() {
                         setError('登录状态保存失败，请重试');
                     }
                 } else {
-                    setError('登录响应数据不完整');
+                    setError('登录失败，未获取到用户信息');
                 }
             } else {
                 // 登录失败

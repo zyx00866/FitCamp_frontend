@@ -14,6 +14,10 @@ function UserPage() {
     
     // 用户数据
     const [userData, setUserData] = useState(null);
+    
+    // 新增：密码确认模态框状态
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [deletePassword, setDeletePassword] = useState('');
 
     // 获取用户信息 - 修复验证逻辑
     useEffect(() => {
@@ -458,6 +462,122 @@ function UserPage() {
             </div>
         );
     }
+  // 注销用户功能
+    const handleDeleteAccount = async () => {
+        // 第一步：基本确认
+        const firstConfirm = window.confirm(
+            '⚠️ 警告：此操作将永久删除您的账户和所有相关数据！\n\n确定要继续吗？'
+        );
+        
+        if (!firstConfirm) return;
+        
+        // 第二步：详细确认
+        const secondConfirm = window.confirm(
+            '最后确认：删除账户后无法恢复，您将失去：\n' +
+            '• 所有个人资料和头像\n' +
+            '• 参与的活动记录\n' +
+            '• 收藏的活动\n' +
+            '• 创建的活动\n\n' +
+            '确定要永久删除账户吗？'
+        );
+        
+        if (!secondConfirm) return;
+
+        // 第三步：显示密码输入模态框
+        setShowPasswordModal(true);
+    };
+
+    // 执行删除操作
+    const executeAccountDeletion = async () => {
+        if (!deletePassword.trim()) {
+            alert('请输入密码');
+            return;
+        }
+
+        const token = sessionUserManager.getCurrentToken();
+        
+        try {
+            setIsLoading(true);
+            
+            console.log('正在注销用户账户...');
+            
+            const response = await fetch('http://localhost:7001/user/unregister', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: userData.id,
+                    password: deletePassword.trim()
+                })
+            });
+
+            console.log('注销用户响应状态:', response.status);
+
+            if (response.status === 401) {
+                alert('登录已过期，请重新登录');
+                sessionUserManager.logout();
+                navigate('/loginpage');
+                return;
+            }
+
+            if (response.status === 400) {
+                const errorData = await response.json();
+                if (errorData.message && errorData.message.includes('密码')) {
+                    alert('密码错误！请确认您输入的密码正确。');
+                } else {
+                    alert(errorData.message || '删除失败，请检查输入信息');
+                }
+                return;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `注销失败: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('注销用户响应数据:', data);
+
+            if (data.success) {
+                // 关闭模态框
+                setShowPasswordModal(false);
+                setDeletePassword('');
+                
+                // 注销成功
+                alert('账户已成功删除。感谢您使用 FitCamp！');
+                
+                // 使用 sessionUserManager 登出
+                sessionUserManager.logout();
+                
+                // 跳转到首页
+                navigate('/');
+            } else {
+                if (data.message && data.message.includes('密码')) {
+                    alert('密码错误！');
+                } else {
+                    throw new Error(data.message || '注销失败');
+                }
+            }
+
+        } catch (error) {
+            console.error('注销用户错误:', error);
+            if (error.message.includes('密码')) {
+                alert('密码验证失败');
+            } else {
+                alert(error.message || '注销失败，请稍后重试');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 取消密码确认模态框
+    const handleCancelPasswordModal = () => {
+        setShowPasswordModal(false);
+        setDeletePassword('');
+    };
 
     const statistics = getStatistics();
 
@@ -475,8 +595,7 @@ function UserPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
                             </svg>
                             返回首页
-                        </button
-                        >
+                        </button>
                         
                         <div className="text-center">
                             <h1 className="text-2xl font-bold text-gray-800">个人中心</h1>
@@ -484,15 +603,19 @@ function UserPage() {
                         
                         {/* 右侧按钮组 */}
                         <div className="flex items-center space-x-3">
+                            
                             {/* 退出登录按钮 */}
                             <button
                                 onClick={handleLogout}
-                                className="flex items-center text-red-600 hover:text-red-800 transition duration-200"
+                                disabled={isLoading}
+                                className={`flex items-center text-red-600 hover:text-red-800 transition duration-200 ${
+                                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
                             >
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                                 </svg>
-                                退出登录
+                                {isLoading ? '处理中...' : '退出登录'}
                             </button>
                         </div>
                     </div>
@@ -610,7 +733,7 @@ function UserPage() {
                                 </div>
                             )}
 
-                            {/* 统计数据 */}
+                            {/* 统计数据和操作按钮 */}
                             {!isEditing && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
@@ -633,7 +756,7 @@ function UserPage() {
                                     </div>
 
                                     {/* 快捷操作按钮 */}
-                                    <div className="pt-4 border-t border-gray-200">
+                                    <div className="pt-4 border-t border-gray-200 space-y-3">
                                         <button
                                             onClick={() => navigate('/createactivity')}
                                             className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-500 to-green-500 text-white rounded-lg hover:from-blue-600 hover:to-green-600 transition duration-200 shadow-md"
@@ -643,6 +766,38 @@ function UserPage() {
                                             </svg>
                                             创建新活动
                                         </button>
+                                        
+                                        {/* 管理创建的活动按钮 */}
+                                        <button
+                                            onClick={() => navigate('/managecreatedactivity')}
+                                            className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition duration-200 shadow-md"
+                                        >
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v11a2 2 0 002 2h5.586a1 1 0 00.707-.293l5.414-5.414a1 1 0 00.293-.707V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                            </svg>
+                                            管理我的活动
+                                        </button>
+                                        
+                                        {/* 危险操作区域 */}
+                                        <div className="pt-3 border-t border-gray-200">
+                                            <p className="text-xs text-gray-500 mb-2 text-center">危险操作</p>
+                                            <button
+                                                onClick={handleDeleteAccount}
+                                                disabled={isLoading}
+                                                className={`w-full flex items-center justify-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-200 text-sm ${
+                                                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                                                }`}
+                                                title="永久删除账户和所有相关数据"
+                                            >
+                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H8a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                                {isLoading ? '处理中...' : '注销账户'}
+                                            </button>
+                                            <p className="text-xs text-gray-400 mt-1 text-center">
+                                                此操作不可恢复
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -841,6 +996,75 @@ function UserPage() {
                     </div>
                 </div>
             </div>
+
+            {/* 密码确认模态框 */}
+            {showPasswordModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                        <div className="text-center mb-4">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                确认删除账户
+                            </h3>
+                            <p className="text-sm text-gray-500 mb-4">
+                                为了安全起见，请输入您的登录密码来确认删除账户
+                            </p>
+                        </div>
+
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                登录密码
+                            </label>
+                            <input
+                                type="password"
+                                value={deletePassword}
+                                onChange={(e) => setDeletePassword(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                placeholder="请输入您的登录密码"
+                                autoComplete="current-password"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && deletePassword.trim()) {
+                                        executeAccountDeletion();
+                                    }
+                                    if (e.key === 'Escape') {
+                                        handleCancelPasswordModal();
+                                    }
+                                }}
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="flex space-x-3">
+                            <button
+                                type="button"
+                                onClick={handleCancelPasswordModal}
+                                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition duration-200"
+                                disabled={isLoading}
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                onClick={executeAccountDeletion}
+                                disabled={isLoading || !deletePassword.trim()}
+                                className={`flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition duration-200 ${
+                                    (isLoading || !deletePassword.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                            >
+                                {isLoading ? '删除中...' : '确认删除'}
+                            </button>
+                        </div>
+
+                        <p className="text-xs text-gray-400 text-center mt-3">
+                            ⚠️ 此操作不可恢复，请谨慎操作
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
