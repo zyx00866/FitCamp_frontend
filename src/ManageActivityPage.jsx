@@ -78,9 +78,34 @@ function ManageActivityPage() {
         }
     };
     
-    // 编辑活动 - 使用 /activity/update 路径
+    // 活动类型映射
+    const typeMap = {
+        '跑步': 'RUNNING',
+        '游泳': 'SWIMMING',
+        '健身': 'WORKOUT',
+        '舞蹈': 'DANCE',
+        '篮球': 'BASKETBALL',
+        '足球': 'FOOTBALL',
+        '羽毛球': 'BADMINTON',
+        '其它': 'OTHERS'
+    };
+
+    const typeReverseMap = {
+        'RUNNING': '跑步',
+        'SWIMMING': '游泳',
+        'WORKOUT': '健身',
+        'DANCE': '舞蹈',
+        'BASKETBALL': '篮球',
+        'FOOTBALL': '足球',
+        'BADMINTON': '羽毛球',
+        'OTHERS': '其它'
+    };
+
+    // 编辑活动
     const handleEditActivity = (activity) => {
-        setEditActivityData({ ...activity });
+        // 如果 type 是中文，转换为英文枚举
+        const typeValue = typeMap[activity.type] || activity.type;
+        setEditActivityData({ ...activity, type: typeValue });
         setShowEditModal(true);
     };
 
@@ -105,9 +130,9 @@ function ManageActivityPage() {
         
         try {
             console.log('正在更新活动信息:', updatedActivityData);
-            
-            const response = await fetch(`http://localhost:7001/activity/update`, {
-                method: 'POST',
+
+            const response = await fetch(`http://localhost:7001/activity`, {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -150,8 +175,8 @@ function ManageActivityPage() {
             console.log('正在删除活动:', selectedActivity.id);
 
             // 不再验证密码，直接传递活动ID
-            const response = await fetch(`http://localhost:7001/activity/delete`, {
-                method: 'POST',
+            const response = await fetch(`http://localhost:7001/activity`, {
+                method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -244,18 +269,13 @@ function ManageActivityPage() {
     // 格式化日期
     const formatDate = (dateString) => {
         if (!dateString) return "时间待定";
-        try {
-            const date = new Date(dateString);
-            return date.toLocaleString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        } catch (error) {
-            return error.message || "时间格式错误";
+        // 直接截取前面的年月日和时分，不做时区转换
+        // 例如 "2025-07-31T07:46:00.000Z" => "2025-07-31 07:46"
+        const match = dateString.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+        if (match) {
+            return `${match[1]} ${match[2]}`;
         }
+        return dateString;
     };
     
     // 获取活动状态
@@ -266,7 +286,7 @@ function ManageActivityPage() {
         if (activityDate < now) {
             return { text: '已结束', className: 'bg-gray-100 text-gray-600' };
         } else {
-            return { text: '进行中', className: 'bg-green-100 text-green-600' };
+            return { text: '未开始', className: 'bg-green-100 text-green-600' };
         }
     };
     
@@ -320,7 +340,7 @@ function ManageActivityPage() {
             formDataUpload.append('files', file);
             formDataUpload.append('category', 'activity');
 
-            const response = await fetch('http://localhost:7001/upload/image', {
+            const response = await fetch('http://localhost:7001/image', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -369,8 +389,12 @@ function ManageActivityPage() {
             // 将图片数组转换为逗号分隔的字符串
             const pictureString = pictureUrls.length > 0 ? pictureUrls.join(',') : editActivityData.picture || '';
 
+            // 类型转换为中文
+            const typeForUpload = typeReverseMap[editActivityData.type] || editActivityData.type;
+
             const result = await updateActivity({
                 ...editActivityData,
+                type: typeForUpload,
                 picture: pictureString
             });
 
@@ -504,7 +528,7 @@ function ManageActivityPage() {
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                             >
-                                进行中
+                                未开始
                             </button>
                             <button
                                 onClick={() => setFilterStatus('past')}
@@ -544,7 +568,7 @@ function ManageActivityPage() {
                                 </svg>
                             </div>
                             <div className="ml-4">
-                                <p className="text-sm text-gray-600">进行中</p>
+                                <p className="text-sm text-gray-600">未开始</p>
                                 <p className="text-2xl font-bold text-gray-800">
                                     {activities.filter(a => new Date(a.date) >= new Date()).length}
                                 </p>
@@ -809,7 +833,7 @@ function ManageActivityPage() {
                             <label className="block text-sm font-medium text-gray-700 mb-2">活动类型</label>
                             <select
                                 name="type"
-                                value={editActivityData.type || 'OTHERS'}
+                                value={editActivityData.type}
                                 onChange={handleEditFieldChange}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                             >
@@ -820,7 +844,7 @@ function ManageActivityPage() {
                                 <option value="BASKETBALL">篮球</option>
                                 <option value="FOOTBALL">足球</option>
                                 <option value="BADMINTON">羽毛球</option>
-                                <option value="OTHERS">其他</option>
+                                <option value="OTHERS">其它</option>
                             </select>
                         </div>
                         <div className="mb-4">

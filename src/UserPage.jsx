@@ -131,8 +131,8 @@ function UserPage() {
         const token = sessionUserManager.getCurrentToken();
         
         try {
-            const response = await fetch('http://localhost:7001/user/updateProfile', {
-                method: 'POST',
+            const response = await fetch('http://localhost:7001/user/Profile', {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -208,7 +208,7 @@ function UserPage() {
             formData.append('files', file);
             formData.append('category', 'avatar'); // 指定图片种类为avatar
             
-            const uploadResponse = await fetch('http://localhost:7001/upload/image', {
+            const uploadResponse = await fetch('http://localhost:7001/image', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -250,8 +250,8 @@ function UserPage() {
             // 更新用户头像
             console.log('开始更新用户头像...');
             
-            const updateResponse = await fetch('http://localhost:7001/user/updateAvatar', {
-                method: 'POST',
+            const updateResponse = await fetch('http://localhost:7001/user/Avatar', {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -502,7 +502,7 @@ function UserPage() {
             console.log('正在注销用户账户...');
             
             const response = await fetch('http://localhost:7001/user/unregister', {
-                method: 'POST',
+                method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',

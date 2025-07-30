@@ -503,7 +503,7 @@ function ActivityDetail() {
                 });
                 formData.append('category', 'comment'); // 指定图片类型
 
-                const uploadResponse = await fetch('http://localhost:7001/upload/image', {
+                const uploadResponse = await fetch('http://localhost:7001/image', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -537,12 +537,12 @@ function ActivityDetail() {
                 picture: pictureUrls,               // 对应 Comment.picture (逗号分隔的URL字符串)
                 starNumber: userRating,             // 对应 Comment.starNumber
                 activity: activityData,             // 传入完整的 Activity 对象
-                user: [user]                        // 传入 User 数组（如果后端需要数组格式）
+                user: user                        // 传入完整的 User 对象
             };
 
             console.log('评论数据:', commentData);
 
-            const response = await fetch('http://localhost:7001/comment/create', {
+            const response = await fetch('http://localhost:7001/comment', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -213,7 +213,7 @@ function CreateActivityPage() {
             formDataUpload.append('files', file);
             formDataUpload.append('category', 'activity');
 
-            const response = await fetch('http://localhost:7001/upload/image', {
+            const response = await fetch('http://localhost:7001/image', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -305,13 +305,12 @@ function CreateActivityPage() {
                 fee: parseFloat(formData.fee) || 0,
                 createTime: new Date().toISOString(),
                 organizerId: currentUser.id,
-                createdFromTab: sessionUserManager.getTabId(), // 记录创建来源标签页
                 creatorId: currentUser.id
             };
 
             console.log('完整的活动数据:', activityData);
 
-            const response = await fetch('http://localhost:7001/activity/create', {
+            const response = await fetch('http://localhost:7001/activity', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

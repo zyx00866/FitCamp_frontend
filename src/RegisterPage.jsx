@@ -246,4 +246,4 @@ function RegisterPage() {
     );
 }
 
-export default RegisterPage;  // 这里应该导出 RegisterPage
+export default RegisterPage;
